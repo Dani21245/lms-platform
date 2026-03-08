@@ -4,6 +4,8 @@ return [
 
     'provider' => env('SMS_PROVIDER', 'africastalking'),
 
+    'username' => env('SMS_USERNAME', 'sandbox'),
+
     'api_key' => env('SMS_API_KEY'),
 
     'api_secret' => env('SMS_API_SECRET'),

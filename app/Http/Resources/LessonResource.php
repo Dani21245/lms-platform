@@ -37,9 +37,16 @@ class LessonResource extends JsonResource
             return false;
         }
 
-        // Instructor owns the course or admin
-        if ($user->isAdmin() || $user->isInstructor()) {
+        // Admin can see all content
+        if ($user->isAdmin()) {
             return true;
+        }
+
+        // Instructor can only see their own course content
+        if ($user->isInstructor()) {
+            $course = \App\Models\Course::find($this->course_id);
+
+            return $course && $course->instructor_id === $user->id;
         }
 
         // Student is enrolled

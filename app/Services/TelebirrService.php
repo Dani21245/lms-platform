@@ -115,7 +115,7 @@ class TelebirrService
             }
 
             return [
-                'valid' => true,
+                'valid' => ! empty($payload['outTradeNo']) && ! empty($payload['tradeStatus']),
                 'out_trade_no' => $payload['outTradeNo'] ?? null,
                 'trade_no' => $payload['tradeNo'] ?? null,
                 'total_amount' => $payload['totalAmount'] ?? null,

@@ -39,7 +39,7 @@ class SmsService
             'apiKey' => config('sms.api_key'),
             'Accept' => 'application/json',
         ])->post('https://api.africastalking.com/version1/messaging', [
-            'username' => config('sms.api_secret'),
+            'username' => config('sms.username', 'sandbox'),
             'to' => $phone,
             'message' => $message,
             'from' => config('sms.sender_id'),

@@ -62,10 +62,11 @@ class StudentLessonController extends Controller
 
         $progressPercent = $totalLessons > 0 ? round(($completedLessons / $totalLessons) * 100, 2) : 0;
 
-        $enrollment->update([
-            'progress' => $progressPercent,
-            'completed_at' => $progressPercent >= 100 ? now() : null,
-        ]);
+        $updateData = ['progress' => $progressPercent];
+        if ($progressPercent >= 100 && ! $enrollment->completed_at) {
+            $updateData['completed_at'] = now();
+        }
+        $enrollment->update($updateData);
 
         return response()->json([
             'message' => 'Lesson marked as complete',
