@@ -31,4 +31,19 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'sms' => [
+        'provider' => env('SMS_PROVIDER', 'africastalking'),
+        'api_key' => env('SMS_API_KEY'),
+        'api_secret' => env('SMS_API_SECRET'),
+        'sender_id' => env('SMS_SENDER_ID', 'LMSPlatform'),
+    ],
+
+    'telebirr' => [
+        'app_id' => env('TELEBIRR_APP_ID'),
+        'app_key' => env('TELEBIRR_APP_KEY'),
+        'short_code' => env('TELEBIRR_SHORT_CODE'),
+        'public_key' => env('TELEBIRR_PUBLIC_KEY'),
+        'api_url' => env('TELEBIRR_API_URL'),
+    ],
+
 ];

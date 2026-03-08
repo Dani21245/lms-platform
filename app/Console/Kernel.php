@@ -12,7 +12,15 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Clean expired OTP codes daily
+        $schedule->command('model:prune', ['--model' => 'App\\Models\\OtpCode'])->daily();
+
+        // Process any stuck pending payments
+        $schedule->call(function () {
+            \App\Models\Payment::where('status', 'pending')
+                ->where('created_at', '<', now()->subHours(2))
+                ->update(['status' => 'failed']);
+        })->hourly();
     }
 
     /**
