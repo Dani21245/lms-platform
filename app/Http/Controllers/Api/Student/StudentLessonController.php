@@ -83,6 +83,10 @@ class StudentLessonController extends Controller
             ->where('course_id', $courseId)
             ->firstOrFail();
 
+        // Validate lesson belongs to the course
+        $course = Course::findOrFail($courseId);
+        $lesson = $course->lessons()->findOrFail($lessonId);
+
         $validator = Validator::make($request->all(), [
             'watch_time_seconds' => ['required', 'integer', 'min:0'],
         ]);
@@ -95,7 +99,7 @@ class StudentLessonController extends Controller
         }
 
         $progress = LessonProgress::updateOrCreate(
-            ['user_id' => $userId, 'lesson_id' => $lessonId],
+            ['user_id' => $userId, 'lesson_id' => $lesson->id],
             ['watch_time_seconds' => $request->input('watch_time_seconds')]
         );
 

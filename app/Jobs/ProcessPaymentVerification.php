@@ -48,6 +48,33 @@ class ProcessPaymentVerification implements ShouldQueue
         ]);
 
         if ($this->transactionStatus === '2') {
+            // Verify paid amount matches expected amount
+            $paidAmount = (float) ($this->rawData['totalAmount'] ?? 0);
+            $expectedAmount = (float) $payment->amount;
+
+            if (abs($paidAmount - $expectedAmount) > 0.01) {
+                Log::warning('Payment amount mismatch', [
+                    'payment_id' => $payment->id,
+                    'expected' => $expectedAmount,
+                    'received' => $paidAmount,
+                ]);
+
+                $payment->markAsFailed();
+
+                TransactionLog::create([
+                    'payment_id' => $payment->id,
+                    'transaction_ref' => $this->transactionRef,
+                    'event_type' => 'amount_mismatch',
+                    'status' => 'failed',
+                    'response_data' => [
+                        'expected' => $expectedAmount,
+                        'received' => $paidAmount,
+                    ],
+                ]);
+
+                return;
+            }
+
             // Payment successful
             $payment->markAsCompleted($this->telebirrTransactionId);
 
