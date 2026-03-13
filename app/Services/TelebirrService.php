@@ -157,8 +157,14 @@ class TelebirrService
 
     private function decryptPayload(string $encryptedData): string
     {
-        $publicKey = config('telebirr.public_key');
-        $key = "-----BEGIN PUBLIC KEY-----\n".wordwrap($publicKey, 64, "\n", true)."\n-----END PUBLIC KEY-----";
+        $privateKey = config('telebirr.private_key');
+        
+        // Validate that private key is configured
+        if (empty($privateKey)) {
+            throw new \Exception('Telebirr private key is not configured. Please set TELEBIRR_PRIVATE_KEY in your .env file.');
+        }
+        
+        $key = "-----BEGIN PRIVATE KEY-----\n".wordwrap($privateKey, 64, "\n", true)."\n-----END PRIVATE KEY-----";
 
         $data = base64_decode($encryptedData);
         $decrypted = '';
@@ -166,7 +172,7 @@ class TelebirrService
 
         foreach ($dataChunks as $chunk) {
             $decryptedChunk = '';
-            openssl_public_decrypt($chunk, $decryptedChunk, $key);
+            openssl_private_decrypt($chunk, $decryptedChunk, $key);
             $decrypted .= $decryptedChunk;
         }
 

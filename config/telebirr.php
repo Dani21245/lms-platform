@@ -10,6 +10,8 @@ return [
 
     'public_key' => env('TELEBIRR_PUBLIC_KEY'),
 
+    'private_key' => env('TELEBIRR_PRIVATE_KEY'),
+
     'api_url' => env('TELEBIRR_API_URL', 'https://app.ethiomobilemoney.et:2121/ammapi/payment/service-openup/toTradeWebPay'),
 
     'notify_url' => env('TELEBIRR_NOTIFY_URL'),
