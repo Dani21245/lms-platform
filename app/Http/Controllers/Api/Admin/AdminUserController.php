@@ -55,6 +55,20 @@ class AdminUserController extends Controller
     {
         $user = User::findOrFail($id);
 
+        // Prevent admin from demoting or deactivating themselves
+        if ($user->id === $request->user()->id) {
+            if ($request->has('role') && $request->input('role') !== 'admin') {
+                return response()->json([
+                    'message' => 'You cannot change your own role.',
+                ], 403);
+            }
+            if ($request->has('is_active') && ! $request->boolean('is_active')) {
+                return response()->json([
+                    'message' => 'You cannot deactivate your own account.',
+                ], 403);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'unique:users,email,'.$id],
@@ -77,9 +91,17 @@ class AdminUserController extends Controller
         ]);
     }
 
-    public function toggleActive(int $id): JsonResponse
+    public function toggleActive(Request $request, int $id): JsonResponse
     {
         $user = User::findOrFail($id);
+
+        // Prevent admin from deactivating themselves
+        if ($user->id === $request->user()->id) {
+            return response()->json([
+                'message' => 'You cannot deactivate your own account.',
+            ], 403);
+        }
+
         $user->update(['is_active' => ! $user->is_active]);
 
         return response()->json([
@@ -88,9 +110,17 @@ class AdminUserController extends Controller
         ]);
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(Request $request, int $id): JsonResponse
     {
         $user = User::findOrFail($id);
+
+        // Prevent admin from deleting themselves
+        if ($user->id === $request->user()->id) {
+            return response()->json([
+                'message' => 'You cannot delete your own account.',
+            ], 403);
+        }
+
         $user->delete();
 
         return response()->json([
