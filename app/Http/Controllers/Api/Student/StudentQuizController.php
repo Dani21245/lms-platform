@@ -43,9 +43,12 @@ class StudentQuizController extends Controller
         $lesson = $course->lessons()->findOrFail($lessonId);
         $quiz = $lesson->quiz()->with('questions')->findOrFail($quizId);
 
+        $questions = $quiz->questions;
+        $questionIds = $questions->pluck('id')->toArray();
+
         $validator = Validator::make($request->all(), [
             'answers' => ['required', 'array'],
-            'answers.*.question_id' => ['required', 'integer'],
+            'answers.*.question_id' => ['required', 'integer', 'in:'.implode(',', $questionIds)],
             'answers.*.selected_option' => ['required', 'integer', 'min:0'],
         ]);
 
@@ -56,25 +59,30 @@ class StudentQuizController extends Controller
             ], 422);
         }
 
-        $answers = collect($request->input('answers'));
-        $questions = $quiz->questions;
+        // Deduplicate answers by question_id, keeping only the first answer per question
+        $answers = collect($request->input('answers'))->unique('question_id')->values();
         $totalQuestions = $questions->count();
         $correctAnswers = 0;
 
-        $gradedAnswers = $answers->map(function ($answer) use ($questions, &$correctAnswers) {
-            $question = $questions->firstWhere('id', $answer['question_id']);
-            $isCorrect = $question && $question->correct_option === $answer['selected_option'];
+        $gradedAnswers = $questions->map(function ($question) use ($answers, &$correctAnswers) {
+            $answer = $answers->firstWhere('question_id', $question->id);
+            $selectedOption = $answer['selected_option'] ?? null;
+
+            // Validate selected_option is within bounds of available options
+            $optionCount = is_array($question->options) ? count($question->options) : 0;
+            $isValidOption = $selectedOption !== null && $selectedOption >= 0 && $selectedOption < $optionCount;
+            $isCorrect = $isValidOption && $question->correct_option === $selectedOption;
 
             if ($isCorrect) {
                 $correctAnswers++;
             }
 
             return [
-                'question_id' => $answer['question_id'],
-                'selected_option' => $answer['selected_option'],
+                'question_id' => $question->id,
+                'selected_option' => $selectedOption,
                 'is_correct' => $isCorrect,
-                'correct_option' => $question?->correct_option,
-                'explanation' => $question?->explanation,
+                'correct_option' => $question->correct_option,
+                'explanation' => $question->explanation,
             ];
         })->toArray();
 

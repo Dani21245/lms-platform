@@ -36,6 +36,19 @@ class InstructorQuizController extends Controller
             ], 422);
         }
 
+        // Validate correct_option is within bounds of options for each question
+        if ($request->has('questions')) {
+            foreach ($request->input('questions') as $index => $questionData) {
+                $optionCount = count($questionData['options'] ?? []);
+                if (($questionData['correct_option'] ?? 0) >= $optionCount) {
+                    return response()->json([
+                        'message' => 'Validation failed',
+                        'errors' => ["questions.{$index}.correct_option" => ["The correct option index must be less than the number of options ({$optionCount})."]],
+                    ], 422);
+                }
+            }
+        }
+
         $quiz = $lesson->quiz()->create([
             'title' => $request->input('title'),
             'description' => $request->input('description'),
@@ -124,6 +137,15 @@ class InstructorQuizController extends Controller
             ], 422);
         }
 
+        // Validate correct_option is within bounds of options
+        $optionCount = count($request->input('options', []));
+        if ($request->input('correct_option') >= $optionCount) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['correct_option' => ["The correct option index must be less than the number of options ({$optionCount})."]],
+            ], 422);
+        }
+
         $maxOrder = $quiz->questions()->max('sort_order') ?? 0;
 
         $question = $quiz->questions()->create([
@@ -158,6 +180,17 @@ class InstructorQuizController extends Controller
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Validate correct_option is within bounds of options
+        $options = $request->input('options', $question->options);
+        $correctOption = $request->input('correct_option', $question->correct_option);
+        $optionCount = is_array($options) ? count($options) : 0;
+        if ($correctOption >= $optionCount) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['correct_option' => ["The correct option index must be less than the number of options ({$optionCount})."]],
             ], 422);
         }
 
