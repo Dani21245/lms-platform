@@ -12,6 +12,7 @@ use App\Models\TransactionLog;
 use App\Services\TelebirrService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -38,69 +39,89 @@ class PaymentController extends Controller
         $user = $request->user();
         $course = Course::where('status', 'published')->findOrFail($request->input('course_id'));
 
-        // Check if already enrolled
-        $existingEnrollment = Enrollment::where('user_id', $user->id)
-            ->where('course_id', $course->id)
-            ->exists();
+        // Use a database transaction with advisory lock to prevent race conditions
+        // where concurrent requests could create duplicate payments or enrollments
+        $result = DB::transaction(function () use ($user, $course) {
+            // Lock the user row to serialize concurrent payment requests from the same user
+            DB::table('users')->where('id', $user->id)->lockForUpdate()->first();
 
-        if ($existingEnrollment) {
-            return response()->json([
-                'message' => 'You are already enrolled in this course.',
-            ], 409);
-        }
+            // Check if already enrolled
+            $existingEnrollment = Enrollment::where('user_id', $user->id)
+                ->where('course_id', $course->id)
+                ->exists();
 
-        // Free course - enroll directly
-        if ($course->isFree()) {
-            Enrollment::create([
+            if ($existingEnrollment) {
+                return ['error' => 'You are already enrolled in this course.', 'status' => 409];
+            }
+
+            // Free course - enroll directly
+            if ($course->isFree()) {
+                Enrollment::create([
+                    'user_id' => $user->id,
+                    'course_id' => $course->id,
+                ]);
+
+                return ['success' => true, 'free' => true];
+            }
+
+            // Check for pending payment
+            $existingPayment = Payment::where('user_id', $user->id)
+                ->where('course_id', $course->id)
+                ->where('status', 'pending')
+                ->first();
+
+            if ($existingPayment) {
+                return ['error' => 'You have a pending payment for this course.', 'status' => 409, 'payment' => $existingPayment];
+            }
+
+            // Create payment record
+            $payment = Payment::create([
                 'user_id' => $user->id,
                 'course_id' => $course->id,
+                'transaction_ref' => 'LMS-'.strtoupper(Str::random(12)),
+                'payment_method' => 'telebirr',
+                'amount' => $course->price,
+                'currency' => $course->currency,
+                'status' => 'pending',
             ]);
 
+            return ['success' => true, 'free' => false, 'payment' => $payment];
+        });
+
+        // Handle transaction results
+        if (isset($result['error'])) {
+            $response = ['message' => $result['error']];
+            if (isset($result['payment'])) {
+                $response['payment'] = new PaymentResource($result['payment']);
+            }
+
+            return response()->json($response, $result['status']);
+        }
+
+        if ($result['free']) {
             return response()->json([
                 'message' => 'Enrolled successfully (free course)',
                 'enrolled' => true,
             ]);
         }
 
-        // Check for pending payment
-        $existingPayment = Payment::where('user_id', $user->id)
-            ->where('course_id', $course->id)
-            ->where('status', 'pending')
-            ->first();
+        $payment = $result['payment'];
 
-        if ($existingPayment) {
-            return response()->json([
-                'message' => 'You have a pending payment for this course.',
-                'payment' => new PaymentResource($existingPayment),
-            ], 409);
-        }
+        // Initiate Telebirr payment (outside transaction to avoid holding locks during external API call)
+        $telebirrResult = $this->telebirrService->initiatePayment($payment);
 
-        // Create payment record
-        $payment = Payment::create([
-            'user_id' => $user->id,
-            'course_id' => $course->id,
-            'transaction_ref' => 'LMS-'.strtoupper(Str::random(12)),
-            'payment_method' => 'telebirr',
-            'amount' => $course->price,
-            'currency' => $course->currency,
-            'status' => 'pending',
-        ]);
-
-        // Initiate Telebirr payment
-        $result = $this->telebirrService->initiatePayment($payment);
-
-        if ($result['success']) {
+        if ($telebirrResult['success']) {
             return response()->json([
                 'message' => 'Payment initiated successfully',
                 'payment' => new PaymentResource($payment),
-                'payment_url' => $result['payment_url'],
+                'payment_url' => $telebirrResult['payment_url'],
             ]);
         }
 
         $payment->markAsFailed();
 
         return response()->json([
-            'message' => $result['message'] ?? 'Failed to initiate payment',
+            'message' => $telebirrResult['message'] ?? 'Failed to initiate payment',
         ], 500);
     }
 
